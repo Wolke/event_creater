@@ -1,0 +1,26 @@
+async function doGet(e) {
+  // Get the text parameter
+  var text = e.parameter.text;
+
+  // Function to check if text is in ICS format
+  function isICS(text) {
+    // Check for the presence of required ICS components
+    var startsWithBegin = text.startsWith("BEGIN:VCALENDAR");
+    var endsWithEnd = text.trim().endsWith("END:VCALENDAR");
+    return startsWithBegin && endsWithEnd;
+  }
+  let link = ""
+  
+  if(isICS(text)){
+     
+    link = await callApiWithWorkspaceTools(ics)
+  }else{
+    let ics = await callApiForICS(text)
+    Logger.log(ics)
+    link = await callApiWithWorkspaceTools(ics)
+  }
+    Logger.log(link)
+
+  // Return the JSON response
+  return ContentService.createTextOutput(link).setMimeType(ContentService.MimeType.TEXT);
+}
