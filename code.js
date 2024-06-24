@@ -1,48 +1,109 @@
-// Retrieve the Calendar ID from the script properties
-var CalendarID = PropertiesService.getScriptProperties().getProperty("CalendarID");
-
-// Function to handle HTTP GET requests and return the index HTML file
-function doGet(e) {
-  return HtmlService.createHtmlOutputFromFile('index');
+// code.js
+// Example usage for ICS format
+async function callApiForICS(text) {
+  var apiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
+  const systemInstruction = "response in ICS format";
+  var response = await callApi(apiKey, text, systemInstruction);
+ 
+  return response;
 }
 
-// Asynchronous function to handle form submissions
-async function handleForm(form) {
-  // Retrieve the text input from the form
-  var text = form.textbox;
-  Logger.log('Received message: ' + text);
-  if (text.length < 1) {
-    return "Please enter a message";
+const WORKSPACE_TOOLS = {
+    "function_declarations": [
+      {
+        "name": "setupEvent",
+        "description": "Sets up a event in Google Calendar.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": "String",
+              "description": "the title of the event"
+            },
+            "time": {
+              "type": "String",
+              "description": "The time of the event."
+            },
+            "timezone":{
+              "type": "String",
+              "description": "The timezone of the location."
+            },
+            "startTime": {
+              "type": "String",
+              "description": "the date and time when the event starts"
+            },
+            "endTime": {
+              "type": "String",
+              "description": "the date and time when the event ends"
+            },
+            "description": {
+              "type": "String",
+              "description": "a free-form description of the event"
+            },
+            "location":{
+              "type": "String",
+              "description": "the location of the event"
+            }
+          },
+          "required": [
+            "title",
+            "time",
+            "timezone",
+            "description",
+            "location"
+          ]
+        }
+      }
+    ]
+  };
+
+// Example usage with WORKSPACE_TOOLS
+async function callApiWithWorkspaceTools(text) {
+  var CalendarID = PropertiesService.getScriptProperties().getProperty("CalendarID");
+  var apiKey = PropertiesService.getScriptProperties().getProperty("GEMINI_API_KEY");
+  const systemInstruction = "use tools";
+  
+  var tool_use = await callApi(apiKey, text, systemInstruction,WORKSPACE_TOOLS);
+  if (tool_use['name'] === "setupEvent" && tool_use['args']['time'] !== "unknown" ) {
+    const { timezone, title, time, startTime, endTime, location, description } = tool_use['args'];
+
+    const eventLink = setupEvent(timezone, title, startTime, endTime, location, description, CalendarID);
+   
+    return eventLink
   }
+  return "fail"
+}
 
-  // Call the Gemini tool with the provided text and workspace tools
-  var tool_use = callGeminiWithTools(text, WORKSPACE_TOOLS);
-  Logger.log(tool_use);
+async function demo(){
+let ics = await callApiForICS(`
+｜2024【尋．蜜】員林小旅行｜ 百果蜜餞走讀、蜜餞體驗工作坊 預約報名
+◾日期｜6月30日 星期日
 
-  // Check if the tool identified is 'setupEvent'
-  if (tool_use['name'] === "setupEvent" && tool_use['args']['time'] !== "unknown") {
-    // Destructure the arguments from the tool
-    const { timezone, title, time, location, description } = tool_use['args'];
+◾時段｜
 
-    // Call Gemini to get the time zone offset
-    let timeZoneOffset = await callGeminiGetTimeZoneOffset(timezone);
+走讀：10:00 - 13:00
 
-    // Call Gemini to get the time details
-    let content = await callGeminiGetTime(time, timeZoneOffset);
+工作坊：14:00 - 16:00
 
-    // Create Date objects for the start and end times
-    const startDate = createDate(content["start"], timeZoneOffset);
-    const endDate = createDate(content["end"], timeZoneOffset);
+◾報到時間｜ 09:30 - 10:00
 
-    // Set up the event and get the event link
-    const eventLink = setupEvent(timeZoneOffset, title, startDate, endDate, location, description, CalendarID);
-    Logger.log("Your meeting has been set up. Event link: " + eventLink);
 
-    // Return the event link
-    return eventLink;
-  } else {
-    // Log and return a message if no proper tool is found
-    Logger.log("No proper tool found");
-    return "No proper tool found";
-  }
+◾走讀開始｜ 10:00
+探索蜜餞老店秘辛
+百果山文史與故事
+認識百果山守護神－廣天宮三恩主
+特色蜜餞冰品享用
+◾原地解散｜ 13:00
+
+
+◾報到地點｜
+
+走讀集合地點｜百果山停車場( 彰化縣員林市出水巷15-30號  )
+`);
+
+
+let link = await callApiWithWorkspaceTools(ics)
+
+Logger.log(link)
+
 }
